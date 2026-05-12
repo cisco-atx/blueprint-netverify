@@ -1,0 +1,312 @@
+{% extends "atx.home.html" %}
+
+{% block full_content %}
+
+<!-- Shared styles for NetVerify pages -->
+<link rel="stylesheet" href="{{ url_for('netverify.static', filename='css/common.css') }}">
+<script src="{{ url_for('netverify.static', filename='js/netverify.js') }}"></script>
+
+<!-- Top navigation bar -->
+<header class="netverify-topbar">
+
+    <!-- Primary navigation menu -->
+    <div class="netverify-menu">
+        <button class="icon-text" onclick="window.location.href='/netverify/snapshots'">
+            <span class="material-icons">camera_alt</span>
+            Snapshots
+        </button>
+
+        <button class="icon-text" id="openReportsBtn">
+            <span class="material-icons">fact_check</span>
+            Reports
+        </button>
+    </div>
+
+    <!-- Context-specific page actions -->
+    <div class="netverify-actions">
+        <button class="icon-text" id="createSnapshotBtn">
+            <span class="material-icons">add_a_photo</span>
+            Create
+        </button>
+
+        <button class="icon-text" id="validateSnapshotsBtn" style="display: none;">
+            <span class="material-icons">published_with_changes</span>
+            Validate
+        </button>
+    </div>
+
+</header>
+
+<!-- Main page content container -->
+<main class="netverify-content">
+    <!-- Snapshots Data Table -->
+    <section aria-label="Snapshots Table">
+        <table id="snapshotsTable" class="display" style="width:100%">
+            <thead>
+            <tr>
+                <th></th>
+                <th>Filename</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Devices</th>
+                <th>Created</th>
+                <th>Timestamp</th>
+                <th>Actions</th>
+            </tr>
+
+            <!-- Filter row -->
+            <tr class="filters">
+                <th></th>
+                <th><input type="text" placeholder="Filter Filename"/></th>
+                <th><input type="text" placeholder="Filter Name"/></th>
+                <th><input type="text" placeholder="Filter Type"/></th>
+                <th><input type="text" placeholder="Filter Devices"/></th>
+                <th><input type="text" placeholder="Filter Creator"/></th>
+                <th><input type="text" placeholder="Filter Timestamp"/></th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </section>
+</main>
+
+<!-- Create Snapshot Modal -->
+<div class="simple-modal-overlay" id="createSnapshotModal">
+    <div class="simple-modal-container" style="width: 800px;">
+
+        <!-- Modal Header -->
+        <div class="simple-modal-header">
+            <div class="simple-modal-title">
+                Create Snapshot
+            </div>
+
+            <button class="close" id="closeCreateSnapshotModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="simple-modal-body">
+
+            <!-- Snapshot Creation Form -->
+            <form id="createSnapshotForm">
+
+                <!-- Form Grid Layout -->
+                <div class="form-grid" style="grid-template-columns: max-content auto;">
+
+                    <!-- Snapshot Name -->
+                    <label for="snapshotName">Name</label>
+                    <input
+                            type="text"
+                            id="snapshotName"
+                            required
+                            placeholder="Enter snapshot name"
+                    >
+
+                    <!-- Snapshot Type -->
+                    <label>Type</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="snapshotType" value="pre" checked>
+                            Pre
+                        </label>
+                        <label>
+                            <input type="radio" name="snapshotType" value="post">
+                            Post
+                        </label>
+                    </div>
+
+                    <!-- Device List -->
+                    <label for="snapshotDevices">Devices</label>
+                    <textarea
+                            id="snapshotDevices"
+                            placeholder="Enter device IDs, one per line"
+                            rows="5"
+                            style="width: 100%; height: 300px; resize: none; line-height: 20px;"
+                            required
+                    ></textarea>
+
+                    <!-- Connector Selection -->
+                    <label for="snapshotConnector">Connector</label>
+                    <select
+                            id="snapshotConnector"
+                            required
+                    >
+                        <option value="">
+                            -- Select Connector --
+                        </option>
+                    </select>
+
+                </div>
+            </form>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="simple-modal-footer">
+            <button
+                    type="submit"
+                    form="createSnapshotForm"
+                    id="confirmCreateSnapshot"
+                    class="icon-text"
+            >
+                <span class="material-icons">add_a_photo</span>
+                Create
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- View Snapshot Modal -->
+<div class="simple-modal-overlay" id="viewSnapshotModal">
+    <div class="simple-modal-container" style="width: 800px; height: 90vh;">
+
+        <!-- Modal Header -->
+        <div class="simple-modal-header">
+            <div class="simple-modal-title" id="viewSnapshotTitle">
+                Snapshot
+            </div>
+
+            <button class="close" id="closeViewSnapshotModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- Device Navigation Tabs -->
+        <div class="snapshot-device-tabs" id="snapshotDeviceTabs"></div>
+
+        <!-- Command Navigation Tabs -->
+        <div class="snapshot-command-tabs" id="snapshotCommandTabs"></div>
+
+        <!-- Snapshot Output Display -->
+        <div class="snapshot-output-container">
+            <pre id="snapshotOutput"></pre>
+        </div>
+
+    </div>
+</div>
+
+<!-- Validate Snapshots Modal -->
+<div class="simple-modal-overlay" id="validateSnapshotsModal">
+    <div class="simple-modal-container" style="width: 900px;">
+
+        <!-- Header -->
+        <div class="simple-modal-header">
+            <div class="simple-modal-title">Validate Snapshots</div>
+            <button class="close" id="closeValidateSnapshotsModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="simple-modal-body"
+             style="overflow:auto;">
+            <div class="validation-grid">
+
+                <!-- Endpoint Validation -->
+                <div class="validation-section">
+                    <div class="validation-section-title">Endpoint Validation</div>
+                    <div class="validation-columns">
+                        <!-- PRE -->
+                        <div class="validation-column">
+                            <div class="validation-column-title">PRE Devices</div>
+                            <div id="endpointPreDevices"></div>
+                        </div>
+                        <!-- POST -->
+                        <div class="validation-column">
+                            <div class="validation-column-title">POST Devices</div>
+                            <div id="endpointPostDevices"></div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Route Validation -->
+                <div class="validation-section">
+                    <div class="validation-section-title">Route Validation</div>
+                    <div class="validation-columns">
+                        <div class="validation-column">
+                            <div class="validation-column-title">PRE Device</div>
+                            <select id="routePreDevice"></select>
+                        </div>
+                        <div class="validation-column">
+                            <div class="validation-column-title">POST Device</div>
+                            <select id="routePostDevice"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Compare -->
+                <div class="validation-section">
+                    <div class="validation-section-title">Config Compare</div>
+                    <div class="validation-columns">
+                        <div class="validation-column">
+                            <div class="validation-column-title">PRE Device</div>
+                            <select id="configPreDevice"></select>
+                        </div>
+
+                        <div class="validation-column">
+                            <div class="validation-column-title">POST Device</div>
+                            <select id="configPostDevice"></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="simple-modal-footer">
+            <button class="icon-text" id="confirmValidateSnapshots">
+                <span class="material-icons">published_with_changes</span>
+                Validate
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Validation Report Modal -->
+<div class="simple-modal-overlay" id="validationReportModal">
+    <div class="simple-modal-container" style="width: 95vw; height: 95vh;">
+        <div class="simple-modal-header">
+            <div class="simple-modal-title">Validation Report</div>
+            <button class="close" id="closeValidationReportModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="simple-modal-body" style="overflow:hidden;">
+            <div id="validationReportContainer" style="height: 100%;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Reports Modal -->
+<div class="simple-modal-overlay" id="reportsModal">
+    <div class="simple-modal-container" style="width: 1200px; height: 85vh;">
+
+        <!-- Header -->
+        <div class="simple-modal-header">
+            <div class="simple-modal-title">Reports</div>
+
+            <button class="close" id="closeReportsModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="simple-modal-body">
+            <table id="reportsTable" class="display" style="width:100%">
+                <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

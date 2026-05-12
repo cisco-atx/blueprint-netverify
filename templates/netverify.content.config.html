@@ -1,0 +1,387 @@
+<style>
+    .toolbar {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .toolbar .sep {
+        width: 1px;
+        height: 26px;
+        background: var(--border-color);
+        margin: 0 6px;
+    }
+
+    /* Filter toggle buttons */
+    icon-text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 2px 8px;
+    }
+
+    .icon-text.active {
+        background: #1e5bb8;
+        color: #ffffff;
+        border-color: #1e5bb8;
+    }
+
+    .icon-text.active:hover {
+        background: #154a9c;
+        border-color: #154a9c;
+    }
+
+    .main-layout {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+    }
+
+    .diff-pane {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 6px;
+        margin: 0 8px;
+    }
+
+    .card {
+        --indent: calc(var(--depth) * 14px);
+        margin: 10px 4px 10px var(--indent);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        position: relative;
+    }
+
+    /* vertical hierarchy line */
+    .card::before {
+        content: "";
+        position: absolute;
+        left: -8px;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: var(--border-color);
+    }
+
+    .card[data-depth="0"]::before {
+        display: none;
+    }
+
+    .card-header {
+        background: var(--background-color-secondary);
+        color: var(--text-color);
+        font-weight: 600;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+    }
+
+    .toggle-icon {
+        font-size: 18px;
+        margin-right: 6px;
+        transition: transform 0.2s ease;
+    }
+
+    .card-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card.collapsed .toggle-icon {
+        transform: rotate(-90deg);
+    }
+
+    .card-body {
+        padding: 4px 0;
+    }
+
+    .card.collapsed .card-body {
+        display: none;
+    }
+
+    .card.is-removed {
+        border-color: var(--badge-error-color);
+    }
+
+    .card.is-removed .card-header {
+        background: var(--badge-error-bg);
+        border-bottom-color: var(--badge-error-color);
+        color: var(--badge-error-color);
+    }
+
+    .card.is-added {
+        border-color: var(--badge-info-color);
+    }
+
+    .card.is-added .card-header {
+        background: var(--badge-info-bg);
+        border-bottom-color: var(--badge-info-color);
+        color: var(--badge-info-color);
+    }
+
+    .item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        margin: 0 4px;
+        border-left: 3px solid transparent;
+        border-radius: 3px;
+    }
+
+    /* Added */
+    .item.is-added {
+        background: var(--badge-info-bg);
+        border-left-color: var(--badge-info-color);
+    }
+
+    .item.is-added .material-icons {
+        color: var(--badge-info-color);
+    }
+
+    /* Removed */
+    .item.is-removed {
+        background: var(--badge-error-bg);
+        border-left-color: var(--badge-error-color);
+    }
+
+    .item.is-removed .material-icons {
+        color: var(--badge-error-color);
+    }
+
+    /* Changed */
+    .item.is-changed {
+        background: var(--badge-warning-bg);
+        border-left-color: var(--badge-warning-color);
+    }
+
+    .item.is-changed .material-icons {
+        color: var(--badge-warning-color);
+    }
+
+    /* Unchanged */
+    .item.is-unchanged {
+        background: var(--background-color);
+        border-left-color: var(--border-color);
+    }
+
+    .item.is-unchanged .material-icons {
+        color: var(--text-muted);
+    }
+
+    .diff-char {
+        color: #d93025;
+        background: #ffcccc;
+        padding: 0 1px;
+        border-radius: 2px;
+    }
+
+    .arrow {
+        margin: 0 8px;
+    }
+
+    .raw-pane {
+        width: 40%;
+        background: var(--background-color);
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .raw-pane.hidden {
+        display: none;
+    }
+
+    .raw-header {
+        display: flex;
+        align-items: center;
+        background: var(--background-color-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .raw-header button {
+        font-size: 12px;
+    }
+
+    .raw-tab {
+        border: none;
+        background: none;
+        padding: 12px;
+        cursor: pointer;
+        border-radius: 0;
+    }
+
+    .raw-tab.active {
+        border-bottom: 2px solid #0078d4;
+        font-weight: 600;
+    }
+
+    .raw-close {
+        margin-left: auto;
+        padding: 6px 10px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .raw-content {
+        flex: 1;
+        background: var(--background-color);
+        border-radius: 4px;
+        color: var(--text-color);
+        font-family: var(--font-mono);
+        font-size: 11.8px;
+        line-height: 1.5;
+        overflow: auto;
+        padding: 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        display: none;
+    }
+
+    .raw-content.active {
+        display: block;
+    }
+</style>
+<div class="toolbar">
+    <button class="icon-text filter-btn" data-filter="is-added">
+        <span class="material-icons">add</span>Added
+    </button>
+    <button class="icon-text filter-btn active" data-filter="is-removed">
+        <span class="material-icons">remove</span>Removed
+    </button>
+    <button class="icon-text filter-btn active" data-filter="is-changed">
+        <span class="material-icons">compare_arrows</span>Changed
+    </button>
+    <button class="icon-text filter-btn" data-filter="is-unchanged">
+        <span class="material-icons">equal</span>Same
+    </button>
+
+    <span class="sep"></span>
+
+    <button class="icon-text" id="expand-all">
+        <span class="material-icons">expand_all</span>Expand All
+    </button>
+    <button class="icon-text" id="collapse-all">
+        <span class="material-icons">collapse_all</span>Collapse All
+    </button>
+    <button class="icon-text" id="show-raw">
+        <span class="material-icons">article</span>Raw
+    </button>
+</div>
+
+<div class="main-layout">
+    <div class="diff-pane">{{ diff_html | safe }}</div>
+    <div id="raw-pane" class="raw-pane hidden">
+        <div class="raw-header">
+            <button class="raw-tab active" data-target="raw-pre">Pre</button>
+            <button class="raw-tab" data-target="raw-post">Post</button>
+            <button id="close-raw" class="raw-close">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <pre id="raw-pre" class="raw-content active">{{ pre_config | e }}</pre>
+        <pre id="raw-post" class="raw-content">{{ post_config | e }}</pre>
+    </div>
+</div>
+<script>
+(() => {
+    /* ---------- Section Toggle ---------- */
+    document.querySelectorAll('.card-header').forEach(header => {
+        header.addEventListener('click', () => {
+            header.closest('.card').classList.toggle('collapsed');
+        });
+    });
+
+    /* ---------- Expand / Collapse ---------- */
+    const expandBtn = document.getElementById('expand-all');
+    const collapseBtn = document.getElementById('collapse-all');
+
+    expandBtn.onclick = () => {
+        document.querySelectorAll('.card')
+            .forEach(c => c.classList.remove('collapsed'));
+
+        expandBtn.classList.add('active');
+        collapseBtn.classList.remove('active');
+    };
+
+    collapseBtn.onclick = () => {
+        document.querySelectorAll('.card')
+            .forEach(c => c.classList.add('collapsed'));
+
+        collapseBtn.classList.add('active');
+        expandBtn.classList.remove('active');
+    };
+
+    /* ---------- Filter Toggle Buttons ---------- */
+    function applyFilters() {
+        const enabled = new Set(
+            Array.from(document.querySelectorAll('.filter-btn.active'))
+                .map(btn => btn.dataset.filter)
+        );
+
+        document.querySelectorAll('.item').forEach(item => {
+            const visible = [...item.classList].some(cls => enabled.has(cls));
+            item.style.display = visible ? '' : 'none';
+        });
+
+        updateCardVisibility();
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            applyFilters();
+        });
+    });
+
+    /* ---------- Hide empty cards ---------- */
+    function updateCardVisibility() {
+        document.querySelectorAll('.card').forEach(card => {
+            const visibleItems = card.querySelectorAll('.item:not([style*="display: none"])');
+            card.style.display = visibleItems.length ? '' : 'none';
+        });
+    }
+
+    /* Initial state */
+    applyFilters();
+
+    /* ---------- Raw Pane Toggle ---------- */
+    const rawPane = document.getElementById('raw-pane');
+    const showRawBtn = document.getElementById('show-raw');
+    const closeRawBtn = document.getElementById('close-raw');
+
+    showRawBtn.onclick = () => {
+        rawPane.classList.toggle('hidden');
+        if (!rawPane.classList.contains('hidden')) {
+            showRawBtn.classList.add('active');
+        } else {
+            showRawBtn.classList.remove('active');
+        }
+    };
+
+    closeRawBtn.onclick = () => {
+        rawPane.classList.add('hidden');
+        showRawBtn.classList.remove('active');
+    };
+
+    /* ---------- Raw Tabs ---------- */
+    document.querySelectorAll('.raw-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.raw-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.raw-content').forEach(c => c.classList.remove('active'));
+
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.target).classList.add('active');
+        });
+    });
+})();
+</script>
