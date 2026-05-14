@@ -1,0 +1,503 @@
+<!-- ============================================================
+     netverify.content.endpoint.html
+     Endpoint comparison view: displays a table of network
+     endpoints with their pre/post values and status badges
+     (present, changed, new, absent). Includes toolbar filters,
+     summary stats, and DataTables-powered column filtering.
+     ============================================================ -->
+
+<!-- =============================================================
+     STYLES
+     ============================================================= -->
+<style>
+    /* -------------------- Layout shell -------------------- */
+    .endpoint-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .endpoint-shell .content {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+      padding: 10px 0;
+    }
+
+    /* -------------------- DataTable overrides -------------------- */
+    .endpoint-shell table.dataTable {
+      width: 100% !important;
+      table-layout: auto;
+    }
+
+    .endpoint-shell .dataTables_wrapper {
+      width: 100%;
+      overflow-x: hidden;
+    }
+
+    .endpoint-shell table.dataTable thead .filters input {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Hide the default global search box (we use per-column filters) */
+    #endpointTable_filter {
+      display: none;
+    }
+
+    /* -------------------- Row states -------------------- */
+    .endpoint-shell .row.hidden {
+      display: none;
+    }
+
+    .endpoint-shell .row:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    /* -------------------- Cell helpers -------------------- */
+    .endpoint-shell .cell-stack {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .endpoint-shell .mono {
+      font-family: var(--font-mono);
+    }
+
+    .endpoint-shell .muted {
+      color: var(--text-muted);
+    }
+
+    /* =========================================================
+       BADGES
+       ========================================================= */
+    .endpoint-shell .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      border: 1px solid var(--border-color);
+      background: var(--background-color-secondary);
+      color: var(--text-color);
+      text-transform: none;
+      white-space: nowrap;
+    }
+
+    /* PRE / EXISTING VALUE - Green */
+    .endpoint-shell .badge.pre {
+      background: var(--badge-info-bg);
+      border-color: var(--badge-info-color);
+      color: var(--badge-info-color);
+    }
+
+    /* POST / NEW VALUE (changed) - Blue */
+    .endpoint-shell .badge.post {
+      background: rgba(0, 120, 212, 0.1);
+      border-color: var(--link-color);
+      color: var(--link-color);
+    }
+
+    /* NEW ENDPOINT VALUE - Yellow */
+    .endpoint-shell .badge.new-value {
+      background: var(--badge-warning-bg);
+      border-color: var(--badge-warning-color);
+      color: var(--badge-warning-color);
+    }
+
+    /* MISSING / ABSENT VALUE - Red */
+    .endpoint-shell .badge.missing {
+      background: var(--badge-error-bg);
+      border-color: var(--badge-error-color);
+      color: var(--badge-error-color);
+    }
+
+    /* -------------------- Status badges -------------------- */
+    .endpoint-shell .badge.status {
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* PRESENT - Green */
+    .endpoint-shell .badge.status.present {
+      background: var(--badge-info-bg);
+      border-color: var(--badge-info-color);
+      color: var(--badge-info-color);
+    }
+
+    /* CHANGED - Blue */
+    .endpoint-shell .badge.status.changed {
+      background: rgba(0, 120, 212, 0.1);
+      border-color: var(--link-color);
+      color: var(--link-color);
+    }
+
+    /* NEW - Yellow */
+    .endpoint-shell .badge.status.new {
+      background: var(--badge-warning-bg);
+      border-color: var(--badge-warning-color);
+      color: var(--badge-warning-color);
+    }
+
+    /* ABSENT - Red */
+    .endpoint-shell .badge.status.absent {
+      background: var(--badge-error-bg);
+      border-color: var(--badge-error-color);
+      color: var(--badge-error-color);
+    }
+
+    /* -------------------- Misc -------------------- */
+    .endpoint-shell .status-stack {
+      display: inline-flex;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
+
+    .endpoint-shell .material-icons.tiny {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* =========================================================
+       TOOLBAR STATS
+       ========================================================= */
+    .endpoint-shell .stats {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+
+    .endpoint-shell .stats .badge {
+      gap: 6px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .endpoint-shell .stats .badge .stat-value {
+      font-weight: 700;
+      opacity: 0.9;
+    }
+</style>
+
+<!-- =============================================================
+     MACRO: render_field
+     Renders a single field cell based on the row status and the
+     field's individual change status (changed / missing / new / same).
+     ============================================================= -->
+{% macro render_field(field, row_status) %}
+{% set pre = field.pre %}
+{% set post = field.post %}
+{% set status = field.status %}
+{% if row_status == "absent" %}
+{# Absent row: show pre (green) -> "??" (red) #}
+<div class="cell-stack">
+      <span class="badge pre">
+        {{ pre or '-' }}
+      </span>
+    <span class="material-icons tiny">
+        arrow_forward
+      </span>
+    <span class="badge missing">
+        ??
+      </span>
+</div>
+{% elif row_status == "new" %}
+{# New row: show post in yellow #}
+<span class="badge new-value">
+      {{ post or '-' }}
+    </span>
+{% else %}
+{# Present row: branch by per-field status #}
+{% if status == "changed" %}
+<div class="cell-stack">
+        <span class="badge pre">
+          {{ pre or '-' }}
+        </span>
+    <span class="material-icons tiny">
+          arrow_forward
+        </span>
+    <span class="badge post">
+          {{ post or '-' }}
+        </span>
+</div>
+{% elif status == "missing" %}
+<div class="cell-stack">
+        <span class="badge pre">
+          {{ pre or '-' }}
+        </span>
+    <span class="material-icons tiny">
+          arrow_forward
+        </span>
+    <span class="badge missing">
+          ??
+        </span>
+</div>
+{% elif status == "new" %}
+{# A field newly added on an otherwise present endpoint #}
+<span class="badge post">
+        {{ post or '-' }}
+      </span>
+{% else %}
+{# same / unchanged #}
+<span class="badge pre">
+        {{ pre or '-' }}
+      </span>
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+<!-- =============================================================
+     MAIN ENDPOINT SHELL
+     ============================================================= -->
+<div class="endpoint-shell">
+
+    <!-- =====================================================
+         TOOLBAR: status filter buttons + summary stats
+         ===================================================== -->
+    <div class="toolbar">
+
+        <!-- Filter toggle buttons -->
+        <button class="icon-text filter-btn active" data-filter="present">
+            <span class="material-icons">check_circle</span>
+            Present
+        </button>
+
+        <button class="icon-text filter-btn active" data-filter="changed">
+            <span class="material-icons">swap_horiz</span>
+            Changed
+        </button>
+
+        <button class="icon-text filter-btn active" data-filter="new">
+            <span class="material-icons">add_circle</span>
+            New
+        </button>
+        <button class="icon-text filter-btn active" data-filter="absent">
+            <span class="material-icons">remove_circle</span>
+            Absent
+        </button>
+
+        {# ----- Compute counts for stats badges ----- #}
+        {% set present_count = endpoints | selectattr('status', 'equalto', 'present') | list | length %}
+        {% set changed_count = endpoints | selectattr('status', 'equalto', 'present') | selectattr('has_changes') | list
+        | length %}
+        {% set new_count = endpoints | selectattr('status', 'equalto', 'new') | list | length %}
+        {% set absent_count = endpoints | selectattr('status', 'equalto', 'absent') | list | length %}
+
+        <!-- Summary stats: counts per status -->
+        <div class="stats">
+      <span class="badge status present">
+        PRESENT
+        <span class="stat-value">{{ present_count }}</span>
+      </span>
+            <span class="badge status changed">
+        CHANGED
+        <span class="stat-value">{{ changed_count }}</span>
+      </span>
+            <span class="badge status new">
+        NEW
+        <span class="stat-value">{{ new_count }}</span>
+      </span>
+            <span class="badge status absent">
+        ABSENT
+        <span class="stat-value">{{ absent_count }}</span>
+      </span>
+            <span class="badge">
+        TOTAL
+        <span class="stat-value">{{ endpoints | length }}</span>
+      </span>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         TABLE: endpoint comparison data
+         ===================================================== -->
+    <div class="content">
+        <table id="endpointTable"
+               class="display"
+               style="width:100%">
+            <thead>
+            <!-- Column headers -->
+            <tr>
+                <th>MAC</th>
+                <th>VLAN</th>
+                <th>IP</th>
+                <th>Hostname</th>
+                <th>Device</th>
+                <th>Interface</th>
+                <th>Speed</th>
+                <th>Duplex</th>
+                <th>Status</th>
+            </tr>
+
+            <!-- Per-column filter inputs -->
+            <tr class="filters">
+                <th><input type="text" placeholder="Filter MAC"></th>
+                <th><input type="text" placeholder="Filter VLAN"></th>
+                <th><input type="text" placeholder="Filter IP"></th>
+                <th><input type="text" placeholder="Filter Hostname"></th>
+                <th><input type="text" placeholder="Filter Device"></th>
+                <th><input type="text" placeholder="Filter Interface"></th>
+                <th><input type="text" placeholder="Filter Speed"></th>
+                <th><input type="text" placeholder="Filter Duplex"></th>
+                <th><input type="text" placeholder="Filter Status"></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in endpoints %}
+            <tr class="row is-{{ row.status }}"
+                data-status="{{ row.status }}"
+                data-changed="{{ '1' if row.has_changes else '0' }}">
+
+                <!-- MAC -->
+                <td class="mono">
+                    {% if row.status == "absent" %}
+                    <span class="badge missing">{{ row.mac }}</span>
+                    {% elif row.status == "new" %}
+                    <span class="badge new-value">{{ row.mac }}</span>
+                    {% else %}
+                    <span class="badge pre">{{ row.mac }}</span>
+                    {% endif %}
+                </td>
+
+                <!-- VLAN -->
+                <td>{{ render_field(row.fields.vlan, row.status) }}</td>
+
+                <!-- IP -->
+                <td class="mono">{{ render_field(row.fields.ip_address, row.status) }}</td>
+
+                <!-- HOSTNAME -->
+                <td>{{ render_field(row.fields.hostname, row.status) }}</td>
+
+                <!-- DEVICE -->
+                <td>{{ render_field(row.fields.device, row.status) }}</td>
+
+                <!-- INTERFACE -->
+                <td class="mono">{{ render_field(row.fields.interface, row.status) }}</td>
+
+                <!-- SPEED -->
+                <td>{{ render_field(row.fields.speed, row.status) }}</td>
+
+                <!-- DUPLEX -->
+                <td>{{ render_field(row.fields.duplex, row.status) }}</td>
+
+                <!-- STATUS -->
+                <td>
+                    {% if row.status == "absent" %}
+                    <span class="badge status absent">ABSENT</span>
+                    {% elif row.status == "new" %}
+                    <span class="badge status new">NEW</span>
+                    {% elif row.has_changes %}
+                    <div class="status-stack">
+                        <span class="badge status present">PRESENT</span>
+                        <span class="badge status changed">CHANGED</span>
+                    </div>
+                    {% else %}
+                    <span class="badge status present">PRESENT</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- =============================================================
+     SCRIPTS
+     - Status filter button toggles
+     - DataTables initialization
+     - Per-column filter inputs
+     ============================================================= -->
+<script>
+    (() => {
+
+      const endpoint = document.querySelector('.endpoint-shell');
+
+      if (!endpoint) {
+        return;
+      }
+
+      /* =====================================================
+         STATUS FILTERS
+         ===================================================== */
+
+      const buttons = endpoint.querySelectorAll('.filter-btn');
+
+      /**
+       * Show/hide rows based on which filter buttons are active.
+       * "Changed" is a sub-filter of "present" rows that have changes.
+       */
+      function applyStatusFilters() {
+
+        const enabled = new Set(
+          Array.from(
+            endpoint.querySelectorAll('.filter-btn.active')
+          ).map(btn => btn.dataset.filter)
+        );
+
+        endpoint.querySelectorAll('.row').forEach(row => {
+
+          const status = row.dataset.status;
+          const isChanged = row.dataset.changed === '1';
+
+          let visible = enabled.has(status);
+
+          // Hide changed-present rows when "changed" filter is off
+          if (status === 'present' && isChanged && !enabled.has('changed')) {
+            visible = false;
+          }
+
+          row.classList.toggle('hidden', !visible);
+
+        });
+
+      }
+
+      // Wire up filter button toggles
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          btn.classList.toggle('active');
+          applyStatusFilters();
+        });
+      });
+
+      applyStatusFilters();
+
+      /* =====================================================
+         DATATABLE INITIALIZATION
+         ===================================================== */
+
+      const table = $('#endpointTable').DataTable({
+        paging: false,
+        orderCellsTop: true,
+        fixedHeader: true,
+        autoWidth: true,
+        scrollX: false
+      });
+
+      /* =====================================================
+         COLUMN FILTERS
+         Bind each filter input to its DataTables column search.
+         ===================================================== */
+
+      $('#endpointTable thead tr.filters th').each(function (index) {
+
+        $('input', this).on('keyup change clear', function () {
+          if (table.column(index).search() !== this.value) {
+            table.column(index).search(this.value).draw();
+          }
+        });
+
+      });
+
+    })();
+</script>

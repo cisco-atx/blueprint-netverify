@@ -1,387 +1,446 @@
+<!-- ============================================================
+     netverify.content.config.html
+     Configuration diff view: displays a hierarchical, collapsible
+     diff of pre/post configurations with filterable change types
+     (added, removed, changed, unchanged) and a side-by-side raw
+     view pane for the original pre/post configuration text.
+     ============================================================ -->
+
+<!-- =============================================================
+     STYLES
+     ============================================================= -->
 <style>
-    .toolbar {
-        padding: 6px 8px;
-        border-bottom: 1px solid var(--border-color);
-        display: flex;
-        align-items: center;
-        gap: 10px;
+    /* -------------------- Layout shell -------------------- */
+    .config-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
     }
 
-    .toolbar .sep {
-        width: 1px;
-        height: 26px;
-        background: var(--border-color);
-        margin: 0 6px;
+    .config-shell .content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
     }
 
-    /* Filter toggle buttons */
-    icon-text {
+    /* -------------------- Diff pane -------------------- */
+    .config-shell .diff-pane {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    /* =========================================================
+       CARDS (hierarchical config sections)
+       ========================================================= */
+    .config-shell .card {
+      --indent: calc(var(--depth) * 14px);
+      margin: 10px 4px 10px var(--indent);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      position: relative;
+    }
+
+    /* Vertical hierarchy guide line drawn to the left of each card */
+    .config-shell .card::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border-color);
+    }
+
+    /* Top-level cards have no parent guide line */
+    .config-shell .card[data-depth="0"]::before {
+      display: none;
+    }
+
+    /* -------------------- Card header -------------------- */
+    .config-shell .card-header {
+      background: var(--background-color-secondary);
+      color: var(--text-color);
+      font-weight: 600;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      user-select: none;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 4px;
-      padding: 2px 8px;
     }
 
-    .icon-text.active {
-        background: #1e5bb8;
-        color: #ffffff;
-        border-color: #1e5bb8;
+    .config-shell .toggle-icon {
+      margin-right: 6px;
+      transition: transform 0.2s ease;
     }
 
-    .icon-text.active:hover {
-        background: #154a9c;
-        border-color: #154a9c;
+    .config-shell .card-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    .main-layout {
-        flex: 1;
-        display: flex;
-        min-height: 0;
+    /* Collapsed-state visuals */
+    .config-shell .card.collapsed .toggle-icon {
+      transform: rotate(-90deg);
     }
 
-    .diff-pane {
-        flex: 1;
-        overflow-y: auto;
-        padding-right: 6px;
-        margin: 0 8px;
+    .config-shell .card-body {
+      padding: 4px 0;
     }
 
-    .card {
-        --indent: calc(var(--depth) * 14px);
-        margin: 10px 4px 10px var(--indent);
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        position: relative;
+    .config-shell .card.collapsed .card-body {
+      display: none;
     }
 
-    /* vertical hierarchy line */
-    .card::before {
-        content: "";
-        position: absolute;
-        left: -8px;
-        top: 0;
-        bottom: 0;
-        width: 1px;
-        background: var(--border-color);
+    /* -------------------- Card change states -------------------- */
+    .config-shell .card.is-removed {
+      border-color: var(--badge-error-color);
     }
 
-    .card[data-depth="0"]::before {
-        display: none;
+    .config-shell .card.is-removed .card-header {
+      background: var(--badge-error-bg);
+      border-bottom-color: var(--badge-error-color);
+      color: var(--badge-error-color);
     }
 
-    .card-header {
-        background: var(--background-color-secondary);
-        color: var(--text-color);
-        font-weight: 600;
-        padding: 6px 10px;
-        border-bottom: 1px solid var(--border-color);
-        cursor: pointer;
-        user-select: none;
-        display: flex;
-        align-items: center;
+    .config-shell .card.is-added {
+      border-color: var(--badge-info-color);
     }
 
-    .toggle-icon {
-        font-size: 18px;
-        margin-right: 6px;
-        transition: transform 0.2s ease;
+    .config-shell .card.is-added .card-header {
+      background: var(--badge-info-bg);
+      border-bottom-color: var(--badge-info-color);
+      color: var(--badge-info-color);
     }
 
-    .card-title {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .card.collapsed .toggle-icon {
-        transform: rotate(-90deg);
-    }
-
-    .card-body {
-        padding: 4px 0;
-    }
-
-    .card.collapsed .card-body {
-        display: none;
-    }
-
-    .card.is-removed {
-        border-color: var(--badge-error-color);
-    }
-
-    .card.is-removed .card-header {
-        background: var(--badge-error-bg);
-        border-bottom-color: var(--badge-error-color);
-        color: var(--badge-error-color);
-    }
-
-    .card.is-added {
-        border-color: var(--badge-info-color);
-    }
-
-    .card.is-added .card-header {
-        background: var(--badge-info-bg);
-        border-bottom-color: var(--badge-info-color);
-        color: var(--badge-info-color);
-    }
-
-    .item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 8px;
-        margin: 0 4px;
-        border-left: 3px solid transparent;
-        border-radius: 3px;
+    /* =========================================================
+       ITEMS (individual diff lines)
+       ========================================================= */
+    .config-shell .item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      margin: 0 4px;
+      border-left: 3px solid transparent;
+      border-radius: 3px;
     }
 
     /* Added */
-    .item.is-added {
-        background: var(--badge-info-bg);
-        border-left-color: var(--badge-info-color);
+    .config-shell .item.is-added {
+      background: var(--badge-info-bg);
+      border-left-color: var(--badge-info-color);
     }
 
-    .item.is-added .material-icons {
-        color: var(--badge-info-color);
+    .config-shell .item.is-added .material-icons {
+      color: var(--badge-info-color);
     }
 
     /* Removed */
-    .item.is-removed {
-        background: var(--badge-error-bg);
-        border-left-color: var(--badge-error-color);
+    .config-shell .item.is-removed {
+      background: var(--badge-error-bg);
+      border-left-color: var(--badge-error-color);
     }
 
-    .item.is-removed .material-icons {
-        color: var(--badge-error-color);
+    .config-shell .item.is-removed .material-icons {
+      color: var(--badge-error-color);
     }
 
     /* Changed */
-    .item.is-changed {
-        background: var(--badge-warning-bg);
-        border-left-color: var(--badge-warning-color);
+    .config-shell .item.is-changed {
+      background: var(--badge-warning-bg);
+      border-left-color: var(--badge-warning-color);
     }
 
-    .item.is-changed .material-icons {
-        color: var(--badge-warning-color);
+    .config-shell .item.is-changed .material-icons {
+      color: var(--badge-warning-color);
     }
 
     /* Unchanged */
-    .item.is-unchanged {
-        background: var(--background-color);
-        border-left-color: var(--border-color);
+    .config-shell .item.is-unchanged {
+      background: var(--background-color);
+      border-left-color: var(--border-color);
     }
 
-    .item.is-unchanged .material-icons {
-        color: var(--text-muted);
+    .config-shell .item.is-unchanged .material-icons {
+      color: var(--text-muted);
     }
 
-    .diff-char {
-        color: #d93025;
-        background: #ffcccc;
-        padding: 0 1px;
-        border-radius: 2px;
+    /* -------------------- Inline diff highlighting -------------------- */
+    .config-shell .diff-char {
+      color: #d93025;
+      background: #ffcccc;
+      padding: 0 1px;
+      border-radius: 2px;
     }
 
-    .arrow {
-        margin: 0 8px;
+    .config-shell .arrow {
+      margin: 0 8px;
     }
 
-    .raw-pane {
-        width: 40%;
-        background: var(--background-color);
-        border-left: 1px solid var(--border-color);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
+    /* =========================================================
+       RAW PANE (side panel with pre/post original config text)
+       ========================================================= */
+    .config-shell .raw-pane {
+      width: 40%;
+      background: var(--background-color);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    .raw-pane.hidden {
-        display: none;
+    .config-shell .raw-pane.hidden {
+      display: none;
     }
 
-    .raw-header {
-        display: flex;
-        align-items: center;
-        background: var(--background-color-secondary);
-        border-bottom: 1px solid var(--border-color);
+    .config-shell .raw-header {
+      display: flex;
+      align-items: center;
+      background: var(--background-color-secondary);
+      border-bottom: 1px solid var(--border-color);
     }
 
-    .raw-header button {
-        font-size: 12px;
+    .config-shell .raw-header button {
+      font-size: var(--font-size-sm);
     }
 
-    .raw-tab {
-        border: none;
-        background: none;
-        padding: 12px;
-        cursor: pointer;
-        border-radius: 0;
+    /* Raw pane tabs (Pre / Post) */
+    .config-shell .raw-tab {
+      border: none;
+      background: none;
+      padding: 12px;
+      cursor: pointer;
+      border-radius: 0;
     }
 
-    .raw-tab.active {
-        border-bottom: 2px solid #0078d4;
-        font-weight: 600;
+    .config-shell .raw-tab.active {
+      border-bottom: 2px solid #0078d4;
+      font-weight: 600;
     }
 
-    .raw-close {
-        margin-left: auto;
-        padding: 6px 10px;
-        border: none;
-        background: transparent;
-        cursor: pointer;
+    .config-shell .raw-close {
+      margin-left: auto;
+      padding: 6px 10px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
     }
 
-    .raw-content {
-        flex: 1;
-        background: var(--background-color);
-        border-radius: 4px;
-        color: var(--text-color);
-        font-family: var(--font-mono);
-        font-size: 11.8px;
-        line-height: 1.5;
-        overflow: auto;
-        padding: 10px;
-        white-space: pre-wrap;
-        word-break: break-all;
-        display: none;
+    /* Raw text content blocks */
+    .config-shell .raw-content {
+      flex: 1;
+      background: var(--background-color);
+      border-radius: 4px;
+      color: var(--text-color);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      line-height: 1.5;
+      overflow: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
     }
 
-    .raw-content.active {
-        display: block;
+    .config-shell .raw-content.active {
+      display: block;
     }
 </style>
-<div class="toolbar">
-    <button class="icon-text filter-btn" data-filter="is-added">
-        <span class="material-icons">add</span>Added
-    </button>
-    <button class="icon-text filter-btn active" data-filter="is-removed">
-        <span class="material-icons">remove</span>Removed
-    </button>
-    <button class="icon-text filter-btn active" data-filter="is-changed">
-        <span class="material-icons">compare_arrows</span>Changed
-    </button>
-    <button class="icon-text filter-btn" data-filter="is-unchanged">
-        <span class="material-icons">equal</span>Same
-    </button>
 
-    <span class="sep"></span>
+<!-- =============================================================
+     MAIN CONFIG SHELL
+     ============================================================= -->
+<div class="config-shell">
 
-    <button class="icon-text" id="expand-all">
-        <span class="material-icons">expand_all</span>Expand All
-    </button>
-    <button class="icon-text" id="collapse-all">
-        <span class="material-icons">collapse_all</span>Collapse All
-    </button>
-    <button class="icon-text" id="show-raw">
-        <span class="material-icons">article</span>Raw
-    </button>
-</div>
+    <!-- =====================================================
+         TOOLBAR: filter buttons + expand/collapse + raw view
+         ===================================================== -->
+    <div class="toolbar">
 
-<div class="main-layout">
-    <div class="diff-pane">{{ diff_html | safe }}</div>
-    <div id="raw-pane" class="raw-pane hidden">
-        <div class="raw-header">
-            <button class="raw-tab active" data-target="raw-pre">Pre</button>
-            <button class="raw-tab" data-target="raw-post">Post</button>
-            <button id="close-raw" class="raw-close">
-                <span class="material-icons">close</span>
-            </button>
+        <!-- Diff type filter toggles -->
+        <button class="icon-text filter-btn active" data-filter="is-added">
+            <span class="material-icons">add</span>Added
+        </button>
+        <button class="icon-text filter-btn active" data-filter="is-removed">
+            <span class="material-icons">remove</span>Removed
+        </button>
+        <button class="icon-text filter-btn active" data-filter="is-changed">
+            <span class="material-icons">compare_arrows</span>Changed
+        </button>
+        <button class="icon-text filter-btn active" data-filter="is-unchanged">
+            <span class="material-icons">equal</span>Same
+        </button>
+
+        <span class="sep"></span>
+
+        <!-- Tree expansion controls -->
+        <button class="icon-text active" id="expand-all">
+            <span class="material-icons">expand_all</span>Expand All
+        </button>
+        <button class="icon-text" id="collapse-all">
+            <span class="material-icons">collapse_all</span>Collapse All
+        </button>
+
+        <!-- Raw config viewer toggle -->
+        <button class="icon-text" id="show-raw">
+            <span class="material-icons">article</span>View Raw
+        </button>
+
+    </div>
+
+    <!-- =====================================================
+         CONTENT: diff pane + (optional) raw pane
+         ===================================================== -->
+    <div class="content">
+
+        <!-- Hierarchical diff rendering (server-rendered HTML) -->
+        <div class="diff-pane">
+            {{ diff_html | safe }}
         </div>
-        <pre id="raw-pre" class="raw-content active">{{ pre_config | e }}</pre>
-        <pre id="raw-post" class="raw-content">{{ post_config | e }}</pre>
+
+        <!-- Raw config side pane (hidden by default) -->
+        <div id="configRawPane" class="raw-pane hidden">
+
+            <!-- Tabs to switch between pre and post raw text -->
+            <div class="raw-header">
+                <button class="raw-tab active" data-target="configRawPre">Pre</button>
+                <button class="raw-tab" data-target="configRawPost">Post</button>
+                <button id="close-raw" class="raw-close">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+
+            <!-- Raw text content blocks; only the active one is visible -->
+            <pre id="configRawPre" class="raw-content active">{{ pre_config | e }}</pre>
+            <pre id="configRawPost" class="raw-content">{{ post_config | e }}</pre>
+        </div>
     </div>
 </div>
+
+<!-- =============================================================
+     SCRIPTS
+     - Card collapse/expand (individual + global)
+     - Filter button toggles
+     - Hide empty cards based on visible items
+     - Raw pane visibility + tab switching
+     ============================================================= -->
 <script>
-(() => {
-    /* ---------- Section Toggle ---------- */
-    document.querySelectorAll('.card-header').forEach(header => {
+    (() => {
+
+      const config = document.querySelector('.config-shell');
+      if (!config) return;
+
+      /* =====================================================
+         SECTION TOGGLE (per-card collapse on header click)
+         ===================================================== */
+      config.querySelectorAll('.card-header').forEach(header => {
         header.addEventListener('click', () => {
-            header.closest('.card').classList.toggle('collapsed');
+          header.closest('.card').classList.toggle('collapsed');
         });
-    });
+      });
 
-    /* ---------- Expand / Collapse ---------- */
-    const expandBtn = document.getElementById('expand-all');
-    const collapseBtn = document.getElementById('collapse-all');
+      /* =====================================================
+         EXPAND / COLLAPSE ALL
+         ===================================================== */
+      const expandBtn = config.querySelector('#expand-all');
+      const collapseBtn = config.querySelector('#collapse-all');
 
-    expandBtn.onclick = () => {
-        document.querySelectorAll('.card')
-            .forEach(c => c.classList.remove('collapsed'));
+      expandBtn.onclick = () => {
+        config.querySelectorAll('.card')
+          .forEach(c => c.classList.remove('collapsed'));
 
         expandBtn.classList.add('active');
         collapseBtn.classList.remove('active');
-    };
+      };
 
-    collapseBtn.onclick = () => {
-        document.querySelectorAll('.card')
-            .forEach(c => c.classList.add('collapsed'));
+      collapseBtn.onclick = () => {
+        config.querySelectorAll('.card')
+          .forEach(c => c.classList.add('collapsed'));
 
         collapseBtn.classList.add('active');
         expandBtn.classList.remove('active');
-    };
+      };
 
-    /* ---------- Filter Toggle Buttons ---------- */
-    function applyFilters() {
+      /* =====================================================
+         FILTER TOGGLE BUTTONS
+         Show/hide diff items based on which change-type
+         filters are currently active.
+         ===================================================== */
+      function applyFilters() {
         const enabled = new Set(
-            Array.from(document.querySelectorAll('.filter-btn.active'))
-                .map(btn => btn.dataset.filter)
+          Array.from(config.querySelectorAll('.filter-btn.active'))
+            .map(btn => btn.dataset.filter)
         );
 
-        document.querySelectorAll('.item').forEach(item => {
-            const visible = [...item.classList].some(cls => enabled.has(cls));
-            item.style.display = visible ? '' : 'none';
+        config.querySelectorAll('.item').forEach(item => {
+          const visible = [...item.classList].some(cls => enabled.has(cls));
+          item.style.display = visible ? '' : 'none';
         });
 
         updateCardVisibility();
-    }
+      }
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+      config.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            btn.classList.toggle('active');
-            applyFilters();
+          btn.classList.toggle('active');
+          applyFilters();
         });
-    });
+      });
 
-    /* ---------- Hide empty cards ---------- */
-    function updateCardVisibility() {
-        document.querySelectorAll('.card').forEach(card => {
-            const visibleItems = card.querySelectorAll('.item:not([style*="display: none"])');
-            card.style.display = visibleItems.length ? '' : 'none';
+      /* =====================================================
+         HIDE EMPTY CARDS
+         Cards with no visible items are hidden entirely.
+         ===================================================== */
+      function updateCardVisibility() {
+        config.querySelectorAll('.card').forEach(card => {
+          const visibleItems = card.querySelectorAll('.item:not([style*="display: none"])');
+          card.style.display = visibleItems.length ? '' : 'none';
         });
-    }
+      }
 
-    /* Initial state */
-    applyFilters();
+      // Initial filter application
+      applyFilters();
 
-    /* ---------- Raw Pane Toggle ---------- */
-    const rawPane = document.getElementById('raw-pane');
-    const showRawBtn = document.getElementById('show-raw');
-    const closeRawBtn = document.getElementById('close-raw');
+      /* =====================================================
+         RAW PANE TOGGLE
+         ===================================================== */
+      const rawPane = config.querySelector('#configRawPane');
+      const showRawBtn = config.querySelector('#show-raw');
+      const closeRawBtn = config.querySelector('#close-raw');
 
-    showRawBtn.onclick = () => {
+      showRawBtn.onclick = () => {
         rawPane.classList.toggle('hidden');
         if (!rawPane.classList.contains('hidden')) {
-            showRawBtn.classList.add('active');
+          showRawBtn.classList.add('active');
         } else {
-            showRawBtn.classList.remove('active');
+          showRawBtn.classList.remove('active');
         }
-    };
+      };
 
-    closeRawBtn.onclick = () => {
+      closeRawBtn.onclick = () => {
         rawPane.classList.add('hidden');
         showRawBtn.classList.remove('active');
-    };
+      };
 
-    /* ---------- Raw Tabs ---------- */
-    document.querySelectorAll('.raw-tab').forEach(tab => {
+      /* =====================================================
+         RAW TABS (Pre / Post)
+         ===================================================== */
+      config.querySelectorAll('.raw-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.raw-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.raw-content').forEach(c => c.classList.remove('active'));
+          // Deactivate all tabs and content panels
+          config.querySelectorAll('.raw-tab').forEach(t => t.classList.remove('active'));
+          config.querySelectorAll('.raw-content').forEach(c => c.classList.remove('active'));
 
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.target).classList.add('active');
+          // Activate selected tab and its target content
+          tab.classList.add('active');
+          const target = document.getElementById(tab.dataset.target);
+          if (target) target.classList.add('active');
         });
-    });
-})();
+      });
+
+    })();
 </script>

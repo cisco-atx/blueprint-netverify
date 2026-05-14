@@ -24,7 +24,7 @@ class SnapshotService:
     COMMANDS = [
         "show run",
         "show interface status",
-        "show mac address-table",
+        "show mac address-table dynamic",
         "show ip route",
         "show ip arp",
     ]
@@ -42,7 +42,7 @@ class SnapshotService:
     def create(self):
         """Create a snapshot file with collected device outputs."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H.%M")
-        filename = f"{self.name}_{timestamp}.json"
+        filename = f"{self.name}_{self.type}_{timestamp}.json"
         filepath = os.path.join(self.dir, filename)
 
         logger.info("Starting snapshot creation: %s", filename)
@@ -60,25 +60,16 @@ class SnapshotService:
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = {
-                executor.submit(
-                    self._collect_outputs, device
-                ): device
-                for device in self.devices
+                executor.submit(self._collect_outputs, device): device for device in self.devices
             }
 
             for future, device in futures.items():
                 try:
-                    logger.info(
-                        "Collecting outputs from device: %s", device
-                    )
+                    logger.info("Collecting outputs from device: %s", device)
                     output = future.result()
                     self.data["devices"][device] = output
                 except Exception as exc:
-                    logger.exception(
-                        "Error collecting data from %s: %s",
-                        device,
-                        exc,
-                    )
+                    logger.exception("Error collecting data from %s: %s", device, exc)
                     self.data["devices"][device] = {
                         "error": str(exc)
                     }
@@ -88,11 +79,7 @@ class SnapshotService:
                 json.dump(self.data, file, indent=4)
 
         except OSError as exc:
-            logger.exception(
-                "Failed to write snapshot file %s: %s",
-                filepath,
-                exc,
-            )
+            logger.exception("Failed to write snapshot file %s: %s", filepath, exc)
             raise
 
     def _collect_outputs(self, device):
@@ -105,30 +92,23 @@ class SnapshotService:
                 password=self.connector["network_password"],
                 proxy={
                     "hostname": self.connector["jumphost_ip"],
-                    "username": (
-                        self.connector["jumphost_username"]
-                    ),
-                    "password": (
-                        self.connector["jumphost_password"]
-                    ),
+                    "username": self.connector["jumphost_username"],
+                    "password": self.connector["jumphost_password"],
                 },
                 handler="NETMIKO",
             )
-
-            logger.info(
-                "Connected to device successfully: %s", device
-            )
+            logger.info("Connected to device successfully: %s", device)
 
             outputs = {}
             for command in self.COMMANDS:
                 response = handler.send_command(command).strip()
                 outputs[command] = response
-            return {"base_prompt": handler.base_prompt, "outputs": outputs}
+            return {
+                "base_prompt": handler.base_prompt,
+                "device_type": handler.device_type,
+                "outputs": outputs
+            }
 
         except Exception as exc:
-            logger.exception(
-                "Error connecting to device %s: %s",
-                device,
-                exc,
-            )
+            logger.exception("Error connecting to device %s: %s", device, exc)
             return {"error": str(exc)}

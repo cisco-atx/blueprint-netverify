@@ -39,6 +39,15 @@ $(document).ready(() => {
         createDefault: `
             <span class="material-icons">add_a_photo</span>
             Create
+        `,
+
+        validateLoading: `
+            <span class="material-icons spin">autorenew</span>
+            Validating...
+        `,
+        validateDefault: `
+            <span class="material-icons">fact_check</span>
+            Validate
         `
     };
 
@@ -604,6 +613,14 @@ $(document).ready(() => {
         }
     };
 
+    const setValidateButtonState = (loading) => {
+        validateBtn.innerHTML = loading
+            ? UI_TEXT.validateLoading
+            : UI_TEXT.validateDefault;
+
+        validateBtn.disabled = loading;
+    };
+
     const buildValidationModal = (pre, post) => {
         const preDevices = Object.keys(pre.devices);
         const postDevices = Object.keys(post.devices);
@@ -668,52 +685,53 @@ $(document).ready(() => {
     );
 
     $('#confirmValidateSnapshots').on('click', async function () {
-         const modal = $('#validateSnapshotsModal');
-         const pre = modal.data('pre');
-         const post = modal.data('post');
-         const payload = {
-             pre_snapshot: pre.meta.filename,
-             post_snapshot: post.meta.filename,
-
-             endpoint_validation: {
-                 pre_devices: $('#endpointPreDevices input:checked')
-                     .map(function () {
-                         return this.value;
-                     })
-                     .get(),
-
-                 post_devices: $('#endpointPostDevices input:checked')
-                     .map(function () {
-                         return this.value;
-                     })
-                     .get()
-             },
-             route_validation: {
-                 pre_device: $('#routePreDevice').val(),
-                 post_device: $('#routePostDevice').val()
-             },
-             config_compare: {
-                 pre_device: $('#configPreDevice').val(),
-                 post_device: $('#configPostDevice').val()
-             }
-         };
-         try {
-             const response = await fetchJson('/netverify/api/validate', {
-                 method: 'POST',
-                 headers: {
-                     'Content-Type': 'application/json'
-                 },
-                 body: JSON.stringify(payload)
-                 });
-
-                if (response.success) {
-                    $('#validateSnapshotsModal').hide();
-                    $('#validationReportContainer').html(response.report.html);
-                    $('#validationReportModal').css('display','flex');
-                }
-         } catch (error) {
-            handleError('Validation failed.', error);
-         }
+        $('#validateSnapshotsModal').css('display', 'none');
+        setValidateButtonState(true);
+        const modal = $('#validateSnapshotsModal');
+        const pre = modal.data('pre');
+        const post = modal.data('post');
+        const payload = {
+            pre_snapshot: pre.meta.filename,
+            post_snapshot: post.meta.filename,
+            endpoint_validation: {
+                pre_devices: $('#endpointPreDevices input:checked')
+                    .map(function () {
+                        return this.value;
+                    })
+                    .get(),
+                post_devices: $('#endpointPostDevices input:checked')
+                    .map(function () {
+                        return this.value;
+                    })
+                    .get()
+            },
+            route_validation: {
+                pre_device: $('#routePreDevice').val(),
+                post_device: $('#routePostDevice').val()
+            },
+            config_compare: {
+                pre_device: $('#configPreDevice').val(),
+                post_device: $('#configPostDevice').val()
+            }
+        };
+        try {
+            const response = await fetchJson('/netverify/api/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+                });
+               if (response.success) {
+                   $('#validateSnapshotsModal').hide();
+                   $('#validationReportContainer').html(response.report.html);
+                   $('#validationReportModal').css('display','flex');
+               }
+        } catch (error) {
+           handleError('Validation failed.', error);
+        } finally {
+            setValidateButtonState(false);
+        }
     });
 
     $('#closeValidationReportModal').on('click', () => {
