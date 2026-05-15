@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 class SnapshotService:
     """Service for collecting and storing network device snapshots."""
-    COMMANDS = [
+
+    REQUIRED_COMMANDS = [
         "show run",
         "show interface status",
         "show mac address-table dynamic",
@@ -29,7 +30,7 @@ class SnapshotService:
         "show ip arp",
     ]
 
-    def __init__(self, name, type, devices, connector, creator, dir):
+    def __init__(self, name, type, devices, connector, creator, dir, custom_commands=None):
         """Initialize the snapshot service."""
         self.name = name
         self.type = type
@@ -37,7 +38,20 @@ class SnapshotService:
         self.connector = connector
         self.creator = creator
         self.dir = dir
+        self.custom_commands = custom_commands or []
         self.data = {}
+
+    @property
+    def commands(self):
+        """Combined list of required + custom commands (deduplicated, order preserved)."""
+        seen = set()
+        combined = []
+        for cmd in list(self.REQUIRED_COMMANDS) + list(self.custom_commands):
+            cmd = cmd.strip()
+            if cmd and cmd not in seen:
+                seen.add(cmd)
+                combined.append(cmd)
+        return combined
 
     def create(self):
         """Create a snapshot file with collected device outputs."""
@@ -53,7 +67,9 @@ class SnapshotService:
                 "name": self.name,
                 "type": self.type,
                 "creator": self.creator,
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "required_commands": self.REQUIRED_COMMANDS,
+                "custom_commands": self.custom_commands,
             },
             "devices": {},
         }
@@ -70,14 +86,11 @@ class SnapshotService:
                     self.data["devices"][device] = output
                 except Exception as exc:
                     logger.exception("Error collecting data from %s: %s", device, exc)
-                    self.data["devices"][device] = {
-                        "error": str(exc)
-                    }
+                    self.data["devices"][device] = {"error": str(exc)}
 
         try:
             with open(filepath, "w", encoding="utf-8") as file:
                 json.dump(self.data, file, indent=4)
-
         except OSError as exc:
             logger.exception("Failed to write snapshot file %s: %s", filepath, exc)
             raise
@@ -100,13 +113,18 @@ class SnapshotService:
             logger.info("Connected to device successfully: %s", device)
 
             outputs = {}
-            for command in self.COMMANDS:
-                response = handler.send_command(command).strip()
-                outputs[command] = response
+            for command in self.commands:
+                try:
+                    response = handler.send_command(command).strip()
+                    outputs[command] = response
+                except Exception as cmd_exc:
+                    logger.exception("Failed to run '%s' on %s", command, device)
+                    outputs[command] = f"ERROR: {cmd_exc}"
+
             return {
                 "base_prompt": handler.base_prompt,
                 "device_type": handler.device_type,
-                "outputs": outputs
+                "outputs": outputs,
             }
 
         except Exception as exc:

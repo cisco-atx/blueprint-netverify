@@ -129,6 +129,7 @@ def create_snapshot():
     type = payload.get("type", "pre")
     devices = payload.get("devices", [])
     connector = payload.get("connector")
+    custom_commands = payload.get("custom_commands", [])
 
     if not name:
         return jsonify({
@@ -147,6 +148,7 @@ def create_snapshot():
             "success": False,
             "error": "Connector is required.",
         }), 400
+
     netverify_bp = current_app.blueprints["netverify"]
 
     try:
@@ -157,6 +159,7 @@ def create_snapshot():
             connector=connector,
             creator=session.get("username", "anonymous"),
             dir=netverify_bp.SNAPSHOTS_DIR,
+            custom_commands=custom_commands,
         )
 
         snapshot_service.create()

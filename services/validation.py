@@ -2,8 +2,8 @@
 
 This module provides the ValidationService class, which orchestrates
 the comparison of pre and post network snapshots. It supports
-configuration diffing and endpoint validation, generating HTML
-reports of the differences found.
+configuration diffing, endpoint validation, and route validation,
+generating HTML reports of the differences found.
 
 Reports are rendered using Flask templates and saved to disk.
 
@@ -16,7 +16,8 @@ from datetime import datetime
 
 from flask import render_template
 
-from .validators import ConfigDiffer, EndpointValidator
+from .validators import ConfigDiffer, EndpointValidator, RouteValidator
+
 
 class ValidationService:
     """Service for validating and comparing network snapshots."""
@@ -29,9 +30,7 @@ class ValidationService:
     def validate(self, payload):
         """Run validation based on payload and generate a report."""
         pre_snapshot = self._load_snapshot(payload["pre_snapshot"])
-        post_snapshot = self._load_snapshot(
-            payload["post_snapshot"]
-        )
+        post_snapshot = self._load_snapshot(payload["post_snapshot"])
 
         report = {
             "meta": self._build_report_meta(pre_snapshot, post_snapshot),
@@ -40,13 +39,22 @@ class ValidationService:
 
         config_compare = payload.get("config_compare")
         endpoint_compare = payload.get("endpoint_validation")
+        route_compare = payload.get("route_validation")
 
         if config_compare:
-            report["sections"]["config"] = self._run_config_validation(pre_snapshot, post_snapshot, config_compare)
-
+            report["sections"]["config"] = self._run_config_validation(
+                pre_snapshot, post_snapshot, config_compare
+            )
 
         if endpoint_compare:
-            report["sections"]["endpoint"] = self._run_endpoint_validation(pre_snapshot, post_snapshot, endpoint_compare)
+            report["sections"]["endpoint"] = self._run_endpoint_validation(
+                pre_snapshot, post_snapshot, endpoint_compare
+            )
+
+        if route_compare:
+            report["sections"]["route"] = self._run_route_validation(
+                pre_snapshot, post_snapshot, route_compare
+            )
 
         report_content = render_template("netverify.content.html", report=report)
         full_html = render_template("netverify.report.html", report=report)
@@ -124,4 +132,21 @@ class ValidationService:
         return render_template(
             "netverify.content.endpoint.html",
             endpoints=validator.render(),
+        )
+
+    def _run_route_validation(self, pre_snapshot, post_snapshot, route_compare):
+        """Run route validation and return rendered HTML."""
+        validator = RouteValidator(
+            pre_snapshot=pre_snapshot,
+            post_snapshot=post_snapshot,
+            pre_device=route_compare.get("pre_device"),
+            post_device=route_compare.get("post_device"),
+        )
+        validator.compare()
+
+        return render_template(
+            "netverify.content.route.html",
+            routes=validator.render(),
+            pre_device=route_compare.get("pre_device"),
+            post_device=route_compare.get("post_device"),
         )

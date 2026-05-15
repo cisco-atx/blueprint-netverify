@@ -18,7 +18,7 @@
 
         <button class="icon-text" id="openReportsBtn">
             <span class="material-icons">fact_check</span>
-            Reports
+            My Reports
         </button>
     </div>
 
@@ -73,7 +73,7 @@
 
 <!-- Create Snapshot Modal -->
 <div class="simple-modal-overlay" id="createSnapshotModal">
-    <div class="simple-modal-container" style="width: 800px;">
+    <div class="simple-modal-container" style="width: 1000px;">
 
         <!-- Modal Header -->
         <div class="simple-modal-header">
@@ -144,6 +144,17 @@
 
         <!-- Modal Footer -->
         <div class="simple-modal-footer">
+
+            <button
+                    type="button"
+                    id="commandsModalBtn"
+                    class="icon-text"
+                    style="margin-right: auto;"
+            >
+                <span class="material-icons">settings</span>
+                Commands
+            </button>
+
             <button
                     type="submit"
                     form="createSnapshotForm"
@@ -155,6 +166,63 @@
             </button>
         </div>
 
+    </div>
+</div>
+
+<!-- Commands Modal -->
+<div class="simple-modal-overlay" id="commandsModal">
+    <div class="simple-modal-container" style="width: 800px;">
+        <!-- Modal Header -->
+        <div class="simple-modal-header">
+            <div class="simple-modal-title">
+                Commands
+            </div>
+
+            <button class="close" id="closeCommandsModal">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="simple-modal-body">
+            <form id="commandsForm">
+                <!-- Two text areas one below other one for required commands and one for custom commands -->
+                <div style="display: flex; gap: 20px; width: 100%; height: 100%;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                        <label for="requiredCommands" style="font-weight: 600;">Required</label>
+                        <textarea
+                                id="requiredCommands"
+                                placeholder="Enter required commands, one per line"
+                                rows="5"
+                                style="height: 400px; resize: none; line-height: 20px;"
+                                readonly
+                        ></textarea>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                        <label for="customCommands" style="font-weight: 600;">Custom Commands</label>
+                        <textarea
+                                id="customCommands"
+                                placeholder="Enter custom commands, one per line"
+                                rows="5"
+                                style="height: 400px; resize: none; line-height: 20px;"
+                        ></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="simple-modal-footer">
+            <button
+                    type="submit"
+                    form="commandsForm"
+                    id="saveCommandsBtn"
+                    class="icon-text"
+            >
+                <span class="material-icons">save</span>
+                Save
+            </button>
+        </div>
     </div>
 </div>
 

@@ -56,6 +56,20 @@ $(document).ready(() => {
     const createSnapshotModal = document.getElementById('createSnapshotModal');
     const createSnapshotForm = document.getElementById('createSnapshotForm');
     const connectorSelect = document.getElementById('snapshotConnector');
+    const commandsModal = document.getElementById('commandsModal');
+    const commandsModalBtn = document.getElementById('commandsModalBtn');
+    const closeCommandsModal = document.getElementById('closeCommandsModal');
+    const commandsForm = document.getElementById('commandsForm');
+    const requiredCommandsTextarea = document.getElementById('requiredCommands');
+    const customCommandsTextarea = document.getElementById('customCommands');
+
+    const REQUIRED_COMMANDS = [
+        'show run',
+        'show interface status',
+        'show mac address-table dynamic',
+        'show ip route',
+        'show ip arp'
+    ];
 
     const $snapshotsTable = $('#snapshotsTable');
     const $viewSnapshotModal = $('#viewSnapshotModal');
@@ -73,6 +87,7 @@ $(document).ready(() => {
     let currentSnapshot = null;
     let currentDevice = null;
     let currentCommand = null;
+    let customCommands = [];
 
     /**
      * --------------------------------------------------------------------------
@@ -141,7 +156,9 @@ $(document).ready(() => {
     const closeModal = () => {
         createSnapshotModal.style.display = 'none';
         createSnapshotForm.reset();
+        customCommands = [];
     };
+
 
     /**
      * --------------------------------------------------------------------------
@@ -322,6 +339,45 @@ $(document).ready(() => {
         }
     }
 
+
+    /**
+     * --------------------------------------------------------------------------
+     * Commands Modal
+     * --------------------------------------------------------------------------
+     */
+
+    // Open Commands modal
+    commandsModalBtn.addEventListener('click', () => {
+        requiredCommandsTextarea.value = REQUIRED_COMMANDS.join('\n');
+        customCommandsTextarea.value = customCommands.join('\n');
+        commandsModal.style.display = 'flex';
+    });
+
+    // Close Commands modal
+    closeCommandsModal.addEventListener('click', () => {
+        commandsModal.style.display = 'none';
+    });
+
+    // Click outside to close
+    commandsModal.addEventListener('click', event => {
+        if (event.target === commandsModal) {
+            commandsModal.style.display = 'none';
+        }
+    });
+
+    // Save custom commands
+    commandsForm.addEventListener('submit', event => {
+        event.preventDefault();
+
+        customCommands = customCommandsTextarea.value
+            .split('\n')
+            .map(cmd => cmd.trim())
+            .filter(Boolean);
+
+        commandsModal.style.display = 'none';
+    });
+
+
     /**
      * --------------------------------------------------------------------------
      * Snapshot Viewer
@@ -480,7 +536,8 @@ $(document).ready(() => {
                     name,
                     type,
                     connector,
-                    devices: devices.split('\n').map(device => device.trim()).filter(Boolean)
+                    devices: devices.split('\n').map(device => device.trim()).filter(Boolean),
+                    custom_commands: customCommands
                 });
             }
         } catch (error) {
