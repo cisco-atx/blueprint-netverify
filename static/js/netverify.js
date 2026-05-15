@@ -523,6 +523,7 @@ $(document).ready(() => {
             const data = await fetchJson(API_ENDPOINTS.connectors);
 
             const connector = data.connectors?.[connectorName];
+            const saveCustomCommands = customCommands
 
             if (!connector) {
                 alert('Selected connector not found.');
@@ -537,7 +538,7 @@ $(document).ready(() => {
                     type,
                     connector,
                     devices: devices.split('\n').map(device => device.trim()).filter(Boolean),
-                    custom_commands: customCommands
+                    custom_commands: saveCustomCommands
                 });
             }
         } catch (error) {
