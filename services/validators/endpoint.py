@@ -11,6 +11,7 @@ command outputs and supports DNS resolution with caching.
 Module path: services/validators/endpoint.py
 """
 
+import re
 import socket
 
 from netcore import AutoParseTextFSM
@@ -158,27 +159,35 @@ class EndpointValidator:
             ).parse()
 
             for mac, mac_data in mac_table.items():
-                if mac_data.get("type", "").lower() != "dynamic":
+                if not re.search(r'^(Te|Gi|Fa|Eth|Two|Twe)', mac_data['ports']):
                     continue
 
                 normalized_mac = self._normalize_mac(mac)
-                port = mac_data.get("ports")
-                vlan = mac_data.get("vlan")
+                port = self._normalize_iface(mac_data.get("ports"))
+                vlan = mac_data.get("vlan_id")
                 ip_address = (arp_table.get(normalized_mac, {}).get("ip_address"))
-                interface = (interface_status.get(port, {}).get("interface"))
 
                 endpoint = {
                     "vlan": vlan,
                     "device": snapshot["devices"][device_name].get("base_prompt") or device_name,
                     "ip_address": ip_address,
                     "hostname": self._resolve_hostname(ip_address),
-                    "interface": interface,
-                    "speed": interface_status.get(interface, {}).get("speed"),
-                    "duplex": interface_status.get(interface, {}).get("duplex"),
+                    "interface": port,
+                    "speed": interface_status.get(port, {}).get("speed"),
+                    "duplex": interface_status.get(port, {}).get("duplex"),
                 }
                 endpoints[normalized_mac] = endpoint
 
         return endpoints
+
+    def _normalize_iface(self, iface):
+        """Normalize interface name to short format."""
+        labels = ['Te', 'Gi', 'Fa', 'Eth', 'Lo', 'Vl', 'Two', 'Twe']
+        for label in labels:
+            if re.match(f'^{label}', iface, re.IGNORECASE):
+                port = re.search(r'(\d+\S*)', iface)
+                return f"{label}{port.group(1)}" if port else iface
+        return iface
 
     def _resolve_hostname(self, ip_address):
         """Resolve hostname for an IP address with caching."""
@@ -188,10 +197,9 @@ class EndpointValidator:
         if ip_address in self.dns_cache:
             return self.dns_cache[ip_address]
         try:
-            # hostname = socket.getfqdn(ip_address)
-            # if hostname == ip_address:
-            #     hostname = None
-            hostname = None
+            hostname = socket.getfqdn(ip_address)
+            if hostname == ip_address:
+                hostname = None
         except Exception:
             hostname = None
 
