@@ -11,6 +11,8 @@ It uses TextFSM parsing for structured data extraction from
 Module path: services/validators/route.py
 """
 
+import re
+
 from netcore import AutoParseTextFSM
 
 
@@ -64,7 +66,7 @@ class RouteValidator:
             return {
                 "prefix": prefix,
                 "status": "new",
-                "has_changes": False,
+                "has_changes": True,
                 "nexthops": self._diff_nexthops([], post.get("nexthops", [])),
             }
 
@@ -95,7 +97,7 @@ class RouteValidator:
         pre_map = {signature(nh): nh for nh in pre_list}
         post_map = {signature(nh): nh for nh in post_list}
 
-        all_sigs = list(pre_map.keys()) + [s for s in post_map.keys() if s not in pre_map]
+        all_sigs = set(pre_map.keys()) | set(post_map.keys())
 
         results = []
         for sig in all_sigs:
@@ -123,31 +125,60 @@ class RouteValidator:
         if not device:
             return routes
 
-        outputs = device.get("outputs", {})
+        output = device.get("outputs", {}).get("show ip route", "")
         device_type = device.get("device_type")
 
-        route_table = AutoParseTextFSM(
-            raw_string=outputs.get("show ip route", ""),
-            cmd="show ip route",
-            device_type=device_type,
-            key="network",
-        ).parse()
+        if device_type == "cisco_nxos":
+            # Regex 1: Matches the Prefix line
+            prefix_pattern = re.compile(r'^(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})')
 
-        for raw_prefix, route_data in route_table.items():
-            prefix = self._build_cidr(raw_prefix, route_data)
+            # Regex 2: Matches the Next-Hop details
+            nh_pattern = re.compile(r'\*?via\s+([^\s,]+)(?:,\s+([a-zA-Z][^\s,]*))?,\s+\[[^\]]+\],\s+[^,]+,\s+([^\s,]+)')
 
-            if not prefix:
-                continue
+            current_prefix = None
+            for line in output.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
 
-            nexthops = self._extract_nexthops(route_data)
+                p_match = prefix_pattern.match(line)
+                if p_match:
+                    current_prefix = p_match.group(1)
+                    routes[current_prefix] = {"prefix": current_prefix, "nexthops": []}
+                    continue
 
-            if not nexthops:
-                continue
+                if current_prefix:
+                    n_match = nh_pattern.search(line)
+                    if n_match:
+                        routes[current_prefix]["nexthops"].append({
+                            "nexthop": n_match.group(1),
+                            "interface": n_match.group(2),
+                            "protocol": n_match.group(3),
+                            "vrf": None
+                        })
+        else:
+            route_table = AutoParseTextFSM(
+                raw_string=output,
+                cmd="show ip route",
+                device_type=device_type,
+                key="network",
+            ).parse()
 
-            routes[prefix] = {
-                "prefix": prefix,
-                "nexthops": nexthops,
-            }
+            for raw_prefix, route_data in route_table.items():
+                prefix = self._build_cidr(raw_prefix, route_data)
+
+                if not prefix:
+                    continue
+
+                nexthops = self._extract_nexthops(route_data)
+
+                if not nexthops:
+                    continue
+
+                routes[prefix] = {
+                    "prefix": prefix,
+                    "nexthops": nexthops,
+                }
 
         return routes
 

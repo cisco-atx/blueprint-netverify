@@ -109,6 +109,7 @@ class SnapshotService:
                     "password": self.connector["jumphost_password"],
                 },
                 handler="NETMIKO",
+                read_timeout_override=1000
             )
             logger.info("Connected to device successfully: %s", device)
 
