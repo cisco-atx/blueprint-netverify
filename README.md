@@ -1,4 +1,11 @@
-# NetVerify
+<div style="display: flex; align-items:center;">
+  <img src="https://raw.githubusercontent.com/cisco-atx/blueprint-netverify/refs/heads/main/static/img/netverify.ico"
+       width="64"
+       style="vertical-align:middle;">
+  <span style="font-size:32px; font-weight:bold; padding:12px">NetVerify</span>
+</div>
+
+>Compare Validate And Assure
 
 ## Overview
 
