@@ -4,6 +4,10 @@
      with their pre/post next-hops and status badges
      (present, changed, new, absent). Includes toolbar filters,
      summary stats, and DataTables-powered column filtering.
+
+     PERFORMANCE: Uses DataTables client-side data mode with
+     deferRender so only visible rows are rendered to the DOM.
+     Routes are passed as a JSON blob instead of Jinja2 loops.
      ============================================================ -->
 
 <!-- =============================================================
@@ -12,253 +16,191 @@
 <style>
     /* -------------------- Layout shell -------------------- */
     .route-shell {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
     }
 
     .route-shell .content {
-      flex: 1;
-      overflow: auto;
-      min-height: 0;
-      padding: 10px 0;
+        flex: 1;
+        overflow: auto;
+        min-height: 0;
+        padding: 10px 0;
     }
 
     /* -------------------- DataTable overrides -------------------- */
     .route-shell table.dataTable {
-      width: 100% !important;
-      table-layout: auto;
+        width: 100% !important;
+        table-layout: auto;
     }
 
     .route-shell .dataTables_wrapper {
-      width: 100%;
-      overflow-x: hidden;
+        width: 100%;
+        overflow-x: hidden;
     }
 
     .route-shell table.dataTable thead .filters input {
-      width: 100%;
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     #routeTable_filter {
-      display: none;
+        display: none;
     }
 
     /* -------------------- Row states -------------------- */
-    .route-shell .row.hidden {
-      display: none;
+    .route-shell tr.hidden-row {
+        display: none !important;
     }
 
-    .route-shell .row:hover {
-      background: rgba(255, 255, 255, 0.03);
+    .route-shell tbody tr:hover {
+        background: rgba(255, 255, 255, 0.03);
     }
 
     /* -------------------- Cell helpers -------------------- */
     .route-shell .nexthop-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .route-shell .nexthop-row {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: nowrap;
     }
 
     .route-shell .nexthop-meta {
-      display: inline-flex;
-      align-items: center;
-      gap: 0;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
     }
 
     .route-shell .nexthop-meta .material-icons {
-      font-size: 16px;
+        font-size: 16px;
     }
 
     .route-shell .mono {
-      font-family: var(--font-mono);
+        font-family: var(--font-mono);
     }
 
     .route-shell .muted {
-      color: var(--text-muted);
+        color: var(--text-muted);
     }
 
     /* =========================================================
        BADGES
        ========================================================= */
     .route-shell .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      border-radius: 8px;
-      padding: 4px 8px;
-      font-size: 11px;
-      line-height: 1.4;
-      border: 1px solid var(--border-color);
-      background: var(--background-color-secondary);
-      color: var(--text-color);
-      text-transform: none;
-      white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: 8px;
+        padding: 4px 8px;
+        font-size: 11px;
+        line-height: 1.4;
+        border: 1px solid var(--border-color);
+        background: var(--background-color-secondary);
+        color: var(--text-color);
+        text-transform: none;
+        white-space: nowrap;
     }
 
     /* PRE / SAME / EXISTING - Green */
     .route-shell .badge.pre {
-      background: var(--badge-info-bg);
-      border-color: var(--badge-info-color);
-      color: var(--badge-info-color);
+        background: var(--badge-info-bg);
+        border-color: var(--badge-info-color);
+        color: var(--badge-info-color);
     }
 
     /* NEW - Yellow */
     .route-shell .badge.new-value {
-      background: var(--badge-warning-bg);
-      border-color: var(--badge-warning-color);
-      color: var(--badge-warning-color);
+        background: var(--badge-warning-bg);
+        border-color: var(--badge-warning-color);
+        color: var(--badge-warning-color);
     }
 
     /* CHANGED - Blue */
     .route-shell .badge.changed {
-      background: rgba(0, 120, 212, 0.1);
-      border-color: var(--link-color);
-      color: var(--link-color);
+        background: rgba(0, 120, 212, 0.1);
+        border-color: var(--link-color);
+        color: var(--link-color);
     }
 
     /* MISSING / ABSENT - Red */
     .route-shell .badge.missing {
-      background: var(--badge-error-bg);
-      border-color: var(--badge-error-color);
-      color: var(--badge-error-color);
+        background: var(--badge-error-bg);
+        border-color: var(--badge-error-color);
+        color: var(--badge-error-color);
     }
 
     /* -------------------- Status badges -------------------- */
     .route-shell .badge.status {
-      font-weight: 600;
-      letter-spacing: 0.3px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
     }
 
     .route-shell .badge.status.present {
-      background: var(--badge-info-bg);
-      border-color: var(--badge-info-color);
-      color: var(--badge-info-color);
+        background: var(--badge-info-bg);
+        border-color: var(--badge-info-color);
+        color: var(--badge-info-color);
     }
 
     .route-shell .badge.status.changed {
-      background: rgba(0, 120, 212, 0.1);
-      border-color: var(--link-color);
-      color: var(--link-color);
+        background: rgba(0, 120, 212, 0.1);
+        border-color: var(--link-color);
+        color: var(--link-color);
     }
 
     .route-shell .badge.status.new {
-      background: var(--badge-warning-bg);
-      border-color: var(--badge-warning-color);
-      color: var(--badge-warning-color);
+        background: var(--badge-warning-bg);
+        border-color: var(--badge-warning-color);
+        color: var(--badge-warning-color);
     }
 
     .route-shell .badge.status.absent {
-      background: var(--badge-error-bg);
-      border-color: var(--badge-error-color);
-      color: var(--badge-error-color);
+        background: var(--badge-error-bg);
+        border-color: var(--badge-error-color);
+        color: var(--badge-error-color);
     }
 
     /* -------------------- Misc -------------------- */
     .route-shell .status-stack {
-      display: inline-flex;
-      gap: 4px;
-      flex-wrap: nowrap;
+        display: inline-flex;
+        gap: 4px;
+        flex-wrap: nowrap;
     }
 
     /* =========================================================
        TOOLBAR STATS
        ========================================================= */
     .route-shell .stats {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: auto;
     }
 
     .route-shell .stats .badge {
-      gap: 6px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+        gap: 6px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
     }
 
     .route-shell .stats .badge .stat-value {
-      font-weight: 700;
-      opacity: 0.9;
+        font-weight: 700;
+        opacity: 0.9;
     }
 </style>
-
-<!-- =============================================================
-     MACRO: render_nexthop
-     Renders one next-hop as:
-       <nexthop> [<protocol-icon> <protocol>] [<interface-icon> <interface>]
-     wrapped in a single colored badge based on `tone`:
-       - 'pre'       -> green  (unchanged)
-       - 'new-value' -> yellow (added in post)
-       - 'missing'   -> red    (removed in post)
-     ============================================================= -->
-{% macro render_nexthop(nh, tone) %}
-{% if nh %}
-<span class="badge {{ tone }}">
-    <span class="mono">{{ nh.nexthop or '-' }}</span>
-
-    {% if nh.protocol %}
-    <span class="nexthop-meta">
-        <span class="material-icons">device_hub</span>
-        <span>{{ nh.protocol }}</span>
-    </span>
-    {% endif %}
-
-    {% if nh.interface %}
-    <span class="nexthop-meta">
-        <span class="material-icons">forward</span>
-        <span>{{ nh.interface }}</span>
-    </span>
-    {% endif %}
-</span>
-{% endif %}
-{% endmacro %}
-
-<!-- =============================================================
-     MACRO: render_nexthops
-     Render a stacked list of next-hops, each in a single color
-     based on its diff status (or row status for new/absent).
-     ============================================================= -->
-{% macro render_nexthops(nexthops, row_status) %}
-<div class="nexthop-list">
-    {% for nh in nexthops %}
-    <div class="nexthop-row">
-        {% if row_status == "absent" %}
-        {{ render_nexthop(nh.pre, 'missing') }}
-        {% elif row_status == "new" %}
-        {{ render_nexthop(nh.post, 'new-value') }}
-        {% else %}
-        {# Present row: branch by per-nexthop status #}
-        {% if nh.status == "missing" %}
-        {{ render_nexthop(nh.pre, 'missing') }}
-        {% elif nh.status == "new" %}
-        {{ render_nexthop(nh.post, 'changed') }}
-        {% else %}
-        {# same -> show post (or pre, identical) in green #}
-        {{ render_nexthop(nh.post or nh.pre, 'pre') }}
-        {% endif %}
-        {% endif %}
-    </div>
-    {% else %}
-    <span class="muted">-</span>
-    {% endfor %}
-</div>
-{% endmacro %}
 
 <!-- =============================================================
      MAIN ROUTE SHELL
@@ -290,91 +232,52 @@
             Absent
         </button>
 
-        {# ----- Compute counts for stats badges ----- #}
-        {% set present_count = routes | selectattr('status', 'equalto', 'present') | list | length %}
-        {% set changed_count = routes | selectattr('status', 'equalto', 'present') | selectattr('has_changes') | list | length %}
-        {% set new_count = routes | selectattr('status', 'equalto', 'new') | list | length %}
-        {% set absent_count = routes | selectattr('status', 'equalto', 'absent') | list | length %}
-
+        <!-- Stats badges: counts are computed via JS from the JSON data -->
         <div class="stats">
             <span class="badge status present">
                 PRESENT
-                <span class="stat-value">{{ present_count }}</span>
+                <span class="stat-value" id="stat-present">0</span>
             </span>
             <span class="badge status changed">
                 CHANGED
-                <span class="stat-value">{{ changed_count }}</span>
+                <span class="stat-value" id="stat-changed">0</span>
             </span>
             <span class="badge status new">
                 NEW
-                <span class="stat-value">{{ new_count }}</span>
+                <span class="stat-value" id="stat-new">0</span>
             </span>
             <span class="badge status absent">
                 ABSENT
-                <span class="stat-value">{{ absent_count }}</span>
+                <span class="stat-value" id="stat-absent">0</span>
             </span>
             <span class="badge">
                 TOTAL
-                <span class="stat-value">{{ routes | length }}</span>
+                <span class="stat-value" id="stat-total">0</span>
             </span>
         </div>
     </div>
 
     <!-- =====================================================
-         TABLE: route comparison data
+         TABLE: route comparison data (empty body - filled by DataTables)
          ===================================================== -->
     <div class="content">
         <table id="routeTable" class="display" style="width:100%">
             <thead>
-            <tr>
-                <th>Prefix</th>
-                <th>Next-Hops</th>
-                <th>Status</th>
-            </tr>
+                <tr>
+                    <th>Prefix</th>
+                    <th>Next-Hops</th>
+                    <th>Status</th>
+                </tr>
 
-            <tr class="filters">
-                <th><input type="text" placeholder="Filter Prefix"></th>
-                <th><input type="text" placeholder="Filter Next-Hop"></th>
-                <th><input type="text" placeholder="Filter Status"></th>
-            </tr>
+                <!-- Column filter inputs -->
+                <tr class="filters">
+                    <th><input type="text" placeholder="Filter Prefix"></th>
+                    <th><input type="text" placeholder="Filter Next-Hop"></th>
+                    <th><input type="text" placeholder="Filter Status"></th>
+                </tr>
             </thead>
             <tbody>
-            {% for row in routes %}
-            <tr class="row is-{{ row.status }}"
-                data-status="{{ row.status }}"
-                data-changed="{{ '1' if row.has_changes else '0' }}">
-
-                <!-- PREFIX -->
-                <td class="mono">
-                    {% if row.status == "absent" %}
-                    <span class="badge missing">{{ row.prefix }}</span>
-                    {% elif row.status == "new" %}
-                    <span class="badge new-value">{{ row.prefix }}</span>
-                    {% else %}
-                    <span class="badge pre">{{ row.prefix }}</span>
-                    {% endif %}
-                </td>
-
-                <!-- NEXT-HOPS -->
-                <td>{{ render_nexthops(row.nexthops, row.status) }}</td>
-
-                <!-- STATUS -->
-                <td>
-                    {% if row.status == "absent" %}
-                    <span class="badge status absent">ABSENT</span>
-                    {% elif row.status == "new" %}
-                    <span class="badge status new">NEW</span>
-                    {% elif row.has_changes %}
-                    <div class="status-stack">
-                        <span class="badge status present">PRESENT</span>
-                        <span class="badge status changed">CHANGED</span>
-                    </div>
-                    {% else %}
-                    <span class="badge status present">PRESENT</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
+                <!-- DataTables will populate rows via deferRender -->
             </tbody>
         </table>
     </div>
@@ -384,79 +287,385 @@
      SCRIPTS
      ============================================================= -->
 <script>
-    (() => {
+(() => {
 
-      const route = document.querySelector('.route-shell');
+    const shell = document.querySelector('.route-shell');
+    if (!shell) return;
 
-      if (!route) {
-        return;
-      }
+    /* =====================================================
+       1. LOAD ROUTE DATA FROM JINJA2 JSON BLOB
+       ===================================================== */
 
-      /* =====================================================
-         STATUS FILTERS
-         ===================================================== */
+    /**
+     * routes is an array of objects, each with:
+     * - prefix:      string
+     * - status:      "present" | "new" | "absent"
+     * - has_changes: boolean
+     * - nexthops:    array of {
+     *     pre:    { nexthop, protocol, interface } | null,
+     *     post:   { nexthop, protocol, interface } | null,
+     *     status: "same" | "new" | "missing"
+     *   }
+     */
+    const routes = {{ routes | tojson }};
 
-      const buttons = route.querySelectorAll('.filter-btn');
+    /* =====================================================
+       2. COMPUTE & RENDER KPI STATS
+       ===================================================== */
 
-      function applyStatusFilters() {
+    let presentCount = 0;
+    let changedCount = 0;
+    let newCount = 0;
+    let absentCount = 0;
 
-        const enabled = new Set(
-          Array.from(
-            route.querySelectorAll('.filter-btn.active')
-          ).map(btn => btn.dataset.filter)
-        );
+    routes.forEach(r => {
+        if (r.status === 'present') {
+            presentCount++;
+            if (r.has_changes) changedCount++;
+        } else if (r.status === 'new') {
+            newCount++;
+        } else if (r.status === 'absent') {
+            absentCount++;
+        }
+    });
 
-        route.querySelectorAll('.row').forEach(row => {
+    document.getElementById('stat-present').textContent = presentCount;
+    document.getElementById('stat-changed').textContent = changedCount;
+    document.getElementById('stat-new').textContent     = newCount;
+    document.getElementById('stat-absent').textContent  = absentCount;
+    document.getElementById('stat-total').textContent   = routes.length;
 
-          const status = row.dataset.status;
-          const isChanged = row.dataset.changed === '1';
+    /* =====================================================
+       3. HTML RENDERING HELPERS
+       Mirrors the Jinja2 macros but in JavaScript.
+       ===================================================== */
 
-          let visible = enabled.has(status);
+    /**
+     * Escapes HTML special characters to prevent XSS
+     * when injecting route data into innerHTML.
+     */
+    function esc(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
 
-          if (status === 'present' && isChanged && !enabled.has('changed')) {
-            visible = false;
-          }
+    /**
+     * Renders a single next-hop entry as a colored badge.
+     * Mirrors the Jinja2 render_nexthop macro.
+     *
+     * @param {object} nh    - { nexthop, protocol, interface }
+     * @param {string} tone  - CSS class: 'pre' | 'new-value' | 'missing' | 'changed'
+     * @returns {string} HTML string
+     */
+    function renderNexthop(nh, tone) {
+        if (!nh) return '';
 
-          row.classList.toggle('hidden', !visible);
+        let html = '<span class="badge ' + tone + '">';
+        html += '<span class="mono">' + esc(nh.nexthop || '-') + '</span>';
 
+        if (nh.protocol) {
+            html += '<span class="nexthop-meta">'
+                + '<span class="material-icons">device_hub</span>'
+                + '<span>' + esc(nh.protocol) + '</span>'
+                + '</span>';
+        }
+
+        if (nh.interface) {
+            html += '<span class="nexthop-meta">'
+                + '<span class="material-icons">forward</span>'
+                + '<span>' + esc(nh.interface) + '</span>'
+                + '</span>';
+        }
+
+        html += '</span>';
+        return html;
+    }
+
+    /**
+     * Renders the full next-hops cell for a route row.
+     * Mirrors the Jinja2 render_nexthops macro.
+     *
+     * @param {Array}  nexthops   - array of nexthop diff objects
+     * @param {string} rowStatus  - "present" | "new" | "absent"
+     * @returns {string} HTML string
+     */
+    function renderNexthops(nexthops, rowStatus) {
+        if (!nexthops || nexthops.length === 0) {
+            return '<span class="muted">-</span>';
+        }
+
+        let html = '<div class="nexthop-list">';
+
+        nexthops.forEach(nh => {
+            html += '<div class="nexthop-row">';
+
+            if (rowStatus === 'absent') {
+                /* Absent row: show pre in red */
+                html += renderNexthop(nh.pre, 'missing');
+            } else if (rowStatus === 'new') {
+                /* New row: show post in yellow */
+                html += renderNexthop(nh.post, 'new-value');
+            } else {
+                /* Present row: branch by per-nexthop status */
+                if (nh.status === 'missing') {
+                    html += renderNexthop(nh.pre, 'missing');
+                } else if (nh.status === 'new') {
+                    html += renderNexthop(nh.post, 'changed');
+                } else {
+                    /* same -> show post (or pre, identical) in green */
+                    html += renderNexthop(nh.post || nh.pre, 'pre');
+                }
+            }
+
+            html += '</div>';
         });
 
-      }
+        html += '</div>';
+        return html;
+    }
 
-      buttons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          btn.classList.toggle('active');
-          applyStatusFilters();
-        });
-      });
+    /**
+     * Renders the prefix cell with appropriate badge color.
+     *
+     * @param {string} prefix - route prefix string
+     * @param {string} status - "present" | "new" | "absent"
+     * @returns {string} HTML string
+     */
+    function renderPrefix(prefix, status) {
+        let cls = 'pre';
+        if (status === 'absent') cls = 'missing';
+        if (status === 'new')    cls = 'new-value';
+        return '<span class="badge ' + cls + '">' + esc(prefix) + '</span>';
+    }
 
-      applyStatusFilters();
+    /**
+     * Renders the status cell with badge(s).
+     *
+     * @param {string}  status     - "present" | "new" | "absent"
+     * @param {boolean} hasChanges - whether the present row has diffs
+     * @returns {string} HTML string
+     */
+    function renderStatus(status, hasChanges) {
+        if (status === 'absent') {
+            return '<span class="badge status absent">ABSENT</span>';
+        }
+        if (status === 'new') {
+            return '<span class="badge status new">NEW</span>';
+        }
+        if (hasChanges) {
+            return '<div class="status-stack">'
+                + '<span class="badge status present">PRESENT</span>'
+                + '<span class="badge status changed">CHANGED</span>'
+                + '</div>';
+        }
+        return '<span class="badge status present">PRESENT</span>';
+    }
 
-      /* =====================================================
-         DATATABLE INITIALIZATION
-         ===================================================== */
+    /**
+     * Builds a plain-text string of all next-hop values for
+     * DataTables search/filter. This allows column filtering
+     * to match against nexthop IPs, protocols, and interfaces
+     * without parsing HTML.
+     *
+     * @param {Array}  nexthops   - array of nexthop diff objects
+     * @param {string} rowStatus  - "present" | "new" | "absent"
+     * @returns {string} searchable text
+     */
+    function nexthopSearchText(nexthops, rowStatus) {
+        if (!nexthops || nexthops.length === 0) return '-';
 
-      const table = $('#routeTable').DataTable({
-        paging: false,
-        orderCellsTop: true,
-        fixedHeader: true,
-        autoWidth: true,
-        scrollX: false
-      });
+        return nexthops.map(nh => {
+            let src;
+            if (rowStatus === 'absent') {
+                src = nh.pre;
+            } else if (rowStatus === 'new') {
+                src = nh.post;
+            } else {
+                src = (nh.status === 'missing') ? nh.pre : (nh.post || nh.pre);
+            }
+            if (!src) return '';
+            return [src.nexthop, src.protocol, src.interface]
+                .filter(Boolean).join(' ');
+        }).join(' ');
+    }
 
-      /* =====================================================
-         COLUMN FILTERS
-         ===================================================== */
+    /**
+     * Returns a plain-text status label for DataTables search.
+     *
+     * @param {string}  status
+     * @param {boolean} hasChanges
+     * @returns {string}
+     */
+    function statusSearchText(status, hasChanges) {
+        if (status === 'absent') return 'ABSENT';
+        if (status === 'new')    return 'NEW';
+        if (hasChanges)          return 'PRESENT CHANGED';
+        return 'PRESENT';
+    }
 
-      $('#routeTable thead tr.filters th').each(function (index) {
+    /* =====================================================
+       4. PREPARE DATA FOR DATATABLES
+       Each row becomes an array of 3 elements (one per column).
+       We store extra metadata in hidden columns or via
+       createdRow callback.
+       ===================================================== */
 
+    const tableData = routes.map(r => ({
+        prefix:      r.prefix,
+        status:      r.status,
+        has_changes: r.has_changes,
+        nexthops:    r.nexthops
+    }));
+
+    /* =====================================================
+       5. STATUS FILTER STATE
+       Tracks which status buttons are active.
+       Used by the custom DataTables search plugin.
+       ===================================================== */
+
+    const activeFilters = new Set(['present', 'changed', 'new', 'absent']);
+
+    /* =====================================================
+       6. CUSTOM DATATABLES SEARCH PLUGIN
+       Filters rows based on the active toolbar buttons.
+       Runs on every draw, but operates on the data array
+       (not the DOM), so it's fast even for 100K rows.
+       ===================================================== */
+
+    $.fn.dataTable.ext.search.push(function (settings, searchData, dataIndex) {
+        /* Only apply to our table */
+        if (settings.nTable.id !== 'routeTable') return true;
+
+        const row = tableData[dataIndex];
+        if (!row) return true;
+
+        const status      = row.status;
+        const hasChanges  = row.has_changes;
+
+        /* "changed" filter controls present+changed rows */
+        if (status === 'present' && hasChanges) {
+            return activeFilters.has('changed');
+        }
+
+        /* Other statuses map directly */
+        return activeFilters.has(status);
+    });
+
+    /* =====================================================
+       7. INITIALIZE DATATABLE
+       - deferRender: true -> only creates DOM nodes for
+         visible rows (critical for 100K performance)
+       - data: tableData   -> no Jinja2 loop needed
+       - columns: render   -> HTML is generated on-the-fly
+         only when a row scrolls into view
+       ===================================================== */
+
+    const table = $('#routeTable').DataTable({
+        data:           tableData,
+        deferRender:    true,           /* KEY: only render visible rows */
+        paging:         true,           /* Enable paging for 100K rows */
+        pageLength:     100,            /* Show 100 rows per page */
+        lengthMenu:     [50, 100, 250, 500, 1000],
+        orderCellsTop:  true,
+        fixedHeader:    true,
+        autoWidth:      true,
+        scrollX:        false,
+        order:          [[0, 'asc']],   /* Default sort by prefix */
+
+        columns: [
+            {
+                /* ----- Column 0: Prefix ----- */
+                data: 'prefix',
+                title: 'Prefix',
+                className: 'mono',
+                render: function (data, type, row) {
+                    /* 'display' type -> return styled HTML */
+                    if (type === 'display') {
+                        return renderPrefix(data, row.status);
+                    }
+                    /* 'filter' / 'sort' / 'type' -> return raw text */
+                    return data;
+                }
+            },
+            {
+                /* ----- Column 1: Next-Hops ----- */
+                data: 'nexthops',
+                title: 'Next-Hops',
+                orderable: false,
+                render: function (data, type, row) {
+                    if (type === 'display') {
+                        return renderNexthops(data, row.status);
+                    }
+                    /* For search/filter: return plain text of all nexthops */
+                    return nexthopSearchText(data, row.status);
+                }
+            },
+            {
+                /* ----- Column 2: Status ----- */
+                data: 'status',
+                title: 'Status',
+                render: function (data, type, row) {
+                    if (type === 'display') {
+                        return renderStatus(data, row.has_changes);
+                    }
+                    /* For search/filter: return plain text label */
+                    return statusSearchText(data, row.has_changes);
+                }
+            }
+        ],
+
+        /* Apply row-level CSS classes for styling hooks */
+        createdRow: function (tr, data) {
+            tr.classList.add('is-' + data.status);
+            tr.setAttribute('data-status', data.status);
+            tr.setAttribute('data-changed', data.has_changes ? '1' : '0');
+        }
+    });
+
+    /* =====================================================
+       8. COLUMN FILTER INPUTS
+       Wire up the per-column text inputs in the header
+       to DataTables column search.
+       ===================================================== */
+
+    $('#routeTable thead tr.filters th').each(function (index) {
         $('input', this).on('keyup change clear', function () {
-          if (table.column(index).search() !== this.value) {
-            table.column(index).search(this.value).draw();
-          }
+            const col = table.column(index);
+            if (col.search() !== this.value) {
+                col.search(this.value).draw();
+            }
         });
+    });
 
-      });
+    /* =====================================================
+       9. TOOLBAR FILTER BUTTONS
+       Toggle active state and trigger DataTables redraw.
+       The custom search plugin (step 6) handles the
+       actual filtering logic.
+       ===================================================== */
 
-    })();
+    const buttons = shell.querySelectorAll('.filter-btn');
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.filter;
+
+            btn.classList.toggle('active');
+
+            if (btn.classList.contains('active')) {
+                activeFilters.add(filter);
+            } else {
+                activeFilters.delete(filter);
+            }
+
+            /* Redraw triggers the custom search plugin */
+            table.draw();
+        });
+    });
+
+})();
 </script>
